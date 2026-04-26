@@ -2,6 +2,7 @@
 
 import { useAppStore } from '../store/appStore';
 import { useEffect, useRef } from 'react';
+import { Mic } from 'lucide-react';
 
 export function TranscriptPanel() {
   const transcript = useAppStore((state) => state.transcript);
@@ -54,6 +55,19 @@ export function TranscriptPanel() {
       </div>
       <div className="flex-1 overflow-y-auto" ref={scrollRef}>
         <div className="p-2 space-y-0.5">
+          {/* Empty State */}
+          {transcript.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-white/40">
+              <div className="w-10 h-10 rounded-full bg-white/[0.03] flex items-center justify-center mb-3 border border-white/[0.06]">
+                <Mic className="w-5 h-5 text-emerald-500/50" />
+              </div>
+              <p className="text-xs font-medium text-white/60">Click the mic to start</p>
+              <p className="text-[10px] mt-1.5 text-white/30 text-center px-4 leading-relaxed">
+                Transcript updates live every ~30 seconds while you speak.
+              </p>
+            </div>
+          )}
+          
           {transcript.map((entry, index) => {
             const chunkIndex = getChunkIndex(entry.id);
             const isLatest = isLatestEntry(index);
