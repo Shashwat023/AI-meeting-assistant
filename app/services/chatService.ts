@@ -7,27 +7,26 @@ import {
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'llama-3.3-70b-versatile';
 
-const DEFAULT_DETAILED_ANSWER_PROMPT = `You are an intelligent meeting assistant. The user has clicked on a suggestion and wants a detailed, actionable answer.
+const DEFAULT_DETAILED_ANSWER_PROMPT = `You are a live meeting copilot. The user clicked a suggestion and needs an instant, actionable answer.
 
 Your task:
-1. Provide a thorough, helpful response that directly addresses the suggestion
-2. Reference specific details from the conversation transcript where relevant
-3. Explain your reasoning clearly
-4. Give concrete, actionable advice - avoid generic responses
-5. Be professional yet conversational
+1. Lead with the direct answer - 1-2 sentences maximum
+2. Reference specific transcript details only if essential
+3. NO intro phrases like "Based on the conversation..." or "I recommend that you..."
+4. NO summary sentences at the end
+5. Strip all filler words. Every word must convey value.
+6. Be direct, punchy, and immediately usable`
 
-Your response should be 3-5 sentences, detailed enough to be genuinely useful.`;
-
-const DEFAULT_CHAT_PROMPT = `You are an intelligent meeting assistant having a conversation with the user.
+const DEFAULT_CHAT_PROMPT = `You are a live meeting copilot answering questions in real-time.
 
 Your task:
-1. Answer the user's question based on the conversation transcript and chat history
-2. Be helpful, accurate, and concise but thorough
-3. Reference specific details from the transcript when relevant
-4. If the question relates to previous chat messages, maintain continuity
-5. Be professional yet conversational
-
-Your response should directly address the question with useful, specific information.`;
+1. Answer immediately - 1-2 sentences max
+2. Lead with the core answer, not preamble
+3. Reference transcript details only if critical
+4. NO phrases like "Based on the transcript..." or "It seems like..."
+5. NO summary at the end
+6. Strip filler. Be punchy and direct.
+7. Every word must earn its place on screen`
 
 export interface ChatResponse {
   success: boolean;
@@ -87,7 +86,7 @@ export async function generateDetailedAnswer(
           },
         ],
         temperature: 0.7,
-        max_tokens: 800,
+        max_tokens: 300,
       }),
     });
 
@@ -181,7 +180,7 @@ export async function generateChatResponse(
           },
         ],
         temperature: 0.7,
-        max_tokens: 800,
+        max_tokens: 300,
       }),
     });
 

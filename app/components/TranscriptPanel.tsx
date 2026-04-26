@@ -2,6 +2,7 @@
 
 import { useAppStore } from '../store/appStore';
 import { useEffect, useRef } from 'react';
+import { Mic } from 'lucide-react';
 
 export function TranscriptPanel() {
   const transcript = useAppStore((state) => state.transcript);
@@ -39,49 +40,82 @@ export function TranscriptPanel() {
     return null;
   };
 
+  const isLatestEntry = (index: number) => index === transcript.length - 1;
+
   return (
-    <div className="flex flex-col h-full border-r border-border bg-background">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <h2 className="text-sm font-semibold text-foreground">Transcript</h2>
-        <span className="text-xs text-muted-foreground">
-          {transcript.length} entries
+    <div className="flex flex-col h-full bg-[#12121a]">
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/[0.06] bg-white/[0.02]">
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          <h2 className="text-[11px] font-semibold text-white/80 uppercase tracking-wider">Transcript</h2>
+        </div>
+        <span className="text-[10px] text-white/40 font-mono tabular-nums">
+          {transcript.length}
         </span>
       </div>
       <div className="flex-1 overflow-y-auto" ref={scrollRef}>
-        <div className="p-4 space-y-4">
-          {transcript.map((entry) => {
+        <div className="p-2 space-y-0.5">
+          {/* Empty State */}
+          {transcript.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-white/40">
+              <div className="w-10 h-10 rounded-full bg-white/[0.03] flex items-center justify-center mb-3 border border-white/[0.06]">
+                <Mic className="w-5 h-5 text-emerald-500/50" />
+              </div>
+              <p className="text-xs font-medium text-white/60">Click the mic to start</p>
+              <p className="text-[10px] mt-1.5 text-white/30 text-center px-4 leading-relaxed">
+                Transcript updates live every ~30 seconds while you speak.
+              </p>
+            </div>
+          )}
+          
+          {transcript.map((entry, index) => {
             const chunkIndex = getChunkIndex(entry.id);
+            const isLatest = isLatestEntry(index);
             return (
-              <div key={entry.id} className="group">
-                <div className="flex items-start gap-3">
+              <div 
+                key={entry.id} 
+                className={`
+                  group py-2 px-2.5 rounded-lg transition-all duration-150
+                  ${isLatest 
+                    ? 'bg-gradient-to-r from-amber-500/10 to-transparent border-l-2 border-amber-500' 
+                    : 'hover:bg-white/[0.03] border-l-2 border-transparent'
+                  }
+                `}
+              >
+                <div className="flex items-start gap-2">
                   <div
-                    className={`flex-shrink-0 w-2 h-2 mt-2 rounded-full ${
+                    className={`flex-shrink-0 w-1.5 h-1.5 mt-1.5 rounded-full ring-2 ring-offset-1 ring-offset-[#12121a] ${
                       entry.speaker === 'user'
-                        ? 'bg-indigo-500'
-                        : 'bg-emerald-500'
+                        ? 'bg-indigo-400 ring-indigo-500/30'
+                        : 'bg-emerald-400 ring-emerald-500/30'
                     }`}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span
-                        className={`text-xs font-medium ${
+                        className={`text-[11px] font-medium ${
                           entry.speaker === 'user'
-                            ? 'text-indigo-600'
-                            : 'text-emerald-600'
+                            ? 'text-indigo-400'
+                            : 'text-emerald-400'
                         }`}
                       >
                         {entry.speaker === 'user' ? 'You' : 'Other'}
                       </span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-[10px] text-white/30 font-mono tabular-nums">
                         {formatTime(entry.timestamp)}
                       </span>
                       {chunkIndex !== null && (
-                        <span className="text-xs px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
+                        <span className="text-[9px] px-1 py-0.5 bg-white/[0.06] text-white/40 rounded font-mono">
                           #{chunkIndex}
                         </span>
                       )}
+                      {isLatest && (
+                        <span className="text-[9px] px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded-full font-medium">
+                          NEW
+                        </span>
+                      )}
                     </div>
-                    <p className="text-sm text-foreground leading-relaxed">
+                    <p className={`text-xs leading-relaxed ${isLatest ? 'text-white/90' : 'text-white/70'}`}>
                       {entry.text}
                     </p>
                   </div>
@@ -89,7 +123,7 @@ export function TranscriptPanel() {
               </div>
             );
           })}
-          <div ref={bottomRef} />
+          <div ref={bottomRef} className="h-2" />
         </div>
       </div>
     </div>

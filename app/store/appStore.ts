@@ -4,21 +4,23 @@ import type { TranscriptEntry, SuggestionCard, SuggestionBatch, ChatMessage, App
 // Default settings
 const defaultSettings: AppSettings = {
   groqApiKey: '',
-  liveSuggestionPrompt: `You are an intelligent meeting assistant. Based on the conversation transcript provided, generate EXACTLY 3 helpful, context-aware suggestions.
+  liveSuggestionPrompt: `You are a live meeting copilot generating instant, scannable suggestions. Based on the conversation transcript, generate EXACTLY 3 compact, high-signal suggestions.
 
 Each suggestion must be one of these types:
-- "question": A smart question to ask to advance the discussion
-- "talking_point": An interesting angle or perspective to bring up
-- "answer": A concise answer to a question that was just asked
-- "fact_check": A relevant fact to verify or clarify
-- "clarification": A point that needs clarification
+- "question": A sharp question to advance the discussion
+- "talking_point": A relevant angle to contribute
+- "answer": A quick answer to a question just asked
+- "fact_check": A relevant fact to verify
+- "clarification": A point needing clarity
 
-Requirements:
+STRICT BREVITY REQUIREMENTS (enforced):
 1. Output MUST be a valid JSON array with exactly 3 objects
-2. Each object must have: title (string), preview (string, max 100 chars), reasoning (string, detailed), type (one of the 5 types above)
-3. Suggestions must be varied (don't have 3 questions in a row)
-4. Be specific - reference actual content from the transcript
-5. No generic filler like "ask for clarification" without specifics
+2. title: max 5 words, action-oriented, no filler
+3. preview: max 60 characters, 1-line punchy hook, NO title repetition, NO type explanation
+4. reasoning: max 120 characters, dense insight only, no generic explanations
+5. Every character must earn its place. Strip all fluff.
+6. Be specific - reference actual transcript content
+7. NO intros like "Consider asking..." or "You could..." - just the raw suggestion
 
 Output format:
 [
@@ -26,112 +28,27 @@ Output format:
   {"title": "...", "preview": "...", "reasoning": "...", "type": "..."},
   {"title": "...", "preview": "...", "reasoning": "...", "type": "..."}
 ]`,
-  detailedAnswerPrompt: 'Provide a comprehensive, well-structured answer based on the conversation context. Include key points, reasoning, and actionable recommendations.',
-  chatPrompt: 'You are a helpful AI assistant embedded in a meeting context. Answer questions based on the conversation transcript provided. Be concise but thorough.',
+  detailedAnswerPrompt: `You are a live meeting copilot. The user clicked a suggestion and needs an instant, actionable answer.
+
+Your task:
+1. Lead with the direct answer - 1-2 sentences maximum
+2. Reference specific transcript details only if essential
+3. NO intro phrases like "Based on the conversation..." or "I recommend that you..."
+4. NO summary sentences at the end
+5. Strip all filler words. Every word must convey value.
+6. Be direct, punchy, and immediately usable`,
+  chatPrompt: `You are a live meeting copilot answering questions in real-time.
+
+Your task:
+1. Answer immediately - 1-2 sentences max
+2. Lead with the core answer, not preamble
+3. Reference transcript details only if critical
+4. NO phrases like "Based on the transcript..." or "It seems like..."
+5. NO summary at the end
+6. Strip filler. Be punchy and direct.
+7. Every word must earn its place on screen`,
   contextWindowSize: 10,
 };
-
-// Fixed base timestamp for SSR consistency
-const BASE_TIMESTAMP = 1745586000000;
-
-// Mock transcript data
-const mockTranscript: TranscriptEntry[] = [
-  {
-    id: '1',
-    timestamp: BASE_TIMESTAMP - 300000,
-    speaker: 'other',
-    text: "Let's discuss the Q4 roadmap and priorities for the engineering team.",
-  },
-  {
-    id: '2',
-    timestamp: BASE_TIMESTAMP - 240000,
-    speaker: 'user',
-    text: 'I think we should prioritize performance improvements and technical debt reduction.',
-  },
-  {
-    id: '3',
-    timestamp: BASE_TIMESTAMP - 180000,
-    speaker: 'other',
-    text: "What's the timeline for the database refactor? We need to plan around the holiday freeze.",
-  },
-  {
-    id: '4',
-    timestamp: BASE_TIMESTAMP - 120000,
-    speaker: 'user',
-    text: 'We can ship phase 1 by mid-November if we focus on the core tables first.',
-  },
-  {
-    id: '5',
-    timestamp: BASE_TIMESTAMP - 60000,
-    speaker: 'other',
-    text: 'Can you elaborate on the performance targets? What metrics are we aiming for?',
-  },
-  {
-    id: '6',
-    timestamp: BASE_TIMESTAMP - 30000,
-    speaker: 'user',
-    text: 'We are targeting a 40% reduction in query latency and 50% improvement in cache hit rates.',
-  },
-];
-
-// Mock suggestions data
-const mockSuggestions: SuggestionCard[] = [
-  {
-    id: '1',
-    timestamp: BASE_TIMESTAMP - 200000,
-    title: 'Key Performance Metrics',
-    preview: 'Highlight specific benchmarks: p95 latency under 100ms, 99th percentile under 200ms.',
-    reasoning: 'The conversation is discussing performance improvements. Providing specific, measurable targets (p95 < 100ms, p99 < 200ms) gives the team concrete goals. The monitoring dashboard reference helps them track progress immediately.',
-    content: 'Highlight specific benchmarks: p95 latency under 100ms, 99th percentile under 200ms. Mention monitoring dashboard at /perf.',
-    type: 'talking_point',
-  },
-  {
-    id: '2',
-    timestamp: BASE_TIMESTAMP - 150000,
-    title: 'Refactor Timeline Breakdown',
-    preview: 'Phase 1: Core tables (users, sessions) - Nov 15. Phase 2: Analytics - Dec 1.',
-    reasoning: 'A structured timeline helps teams plan resources and dependencies. Breaking the refactor into phases reduces risk and allows for incremental validation. Mentioning DevOps coordination ensures infrastructure readiness.',
-    content: 'Phase 1: Core tables (users, sessions) - Nov 15\\nPhase 2: Analytics tables - Dec 1\\nPhase 3: Archive tables - Jan 15\\nCoordinate with DevOps for staging environment.',
-    type: 'fact_check',
-  },
-  {
-    id: '3',
-    timestamp: BASE_TIMESTAMP - 80000,
-    title: 'Q4 Milestone Proposal',
-    preview: 'Propose a structured approach with 4 key milestones from Oct 30 to Dec 15.',
-    reasoning: 'Having clear milestones keeps projects on track. The proposed dates (baseline Oct 30, kickoff Nov 1, review Nov 15, delivery Dec 15) create accountability and checkpoints for course correction.',
-    content: 'Propose a structured approach: (1) Performance baseline by Oct 30, (2) Refactor kickoff Nov 1, (3) Mid-quarter review Nov 15, (4) Final delivery Dec 15.',
-    type: 'question',
-  },
-];
-
-// Mock chat messages
-const mockChat: ChatMessage[] = [
-  {
-    id: '1',
-    timestamp: BASE_TIMESTAMP - 250000,
-    role: 'user',
-    content: 'Summarize the roadmap discussion so far.',
-  },
-  {
-    id: '2',
-    timestamp: BASE_TIMESTAMP - 245000,
-    role: 'assistant',
-    content: 'The team is discussing Q4 priorities focusing on two main areas: (1) Performance improvements targeting 40% query latency reduction and 50% cache improvement, and (2) A database refactor scheduled in three phases through January.',
-  },
-  {
-    id: '3',
-    timestamp: BASE_TIMESTAMP - 90000,
-    role: 'user',
-    content: 'What are the specific performance goals mentioned?',
-  },
-  {
-    id: '4',
-    timestamp: BASE_TIMESTAMP - 85000,
-    role: 'assistant',
-    content: 'The user mentioned targeting a 40% reduction in query latency and a 50% improvement in cache hit rates. These are ambitious but achievable goals that align with the technical debt reduction initiative.',
-  },
-];
 
 interface AppState {
   // Settings
@@ -186,8 +103,8 @@ export const useAppStore = create<AppState>((set) => ({
       settings: { ...state.settings, ...newSettings },
     })),
 
-  // Initial transcript
-  transcript: mockTranscript,
+  // Initial transcript (empty - no demo data)
+  transcript: [],
   addTranscriptEntry: (entry) =>
     set((state) => ({
       transcript: [
@@ -200,8 +117,8 @@ export const useAppStore = create<AppState>((set) => ({
       ],
     })),
 
-  // Initial suggestions
-  suggestions: mockSuggestions,
+  // Initial suggestions (empty - no demo data)
+  suggestions: [],
   suggestionBatches: [],
   addSuggestion: (suggestion) =>
     set((state) => ({
@@ -234,8 +151,8 @@ export const useAppStore = create<AppState>((set) => ({
       suggestionBatches: [],
     })),
 
-  // Initial chat
-  chatMessages: mockChat,
+  // Initial chat (empty - no demo data)
+  chatMessages: [],
   addChatMessage: (message) =>
     set((state) => ({
       chatMessages: [
@@ -289,9 +206,9 @@ export const useAppStore = create<AppState>((set) => ({
   // Actions
   resetMockData: () =>
     set({
-      transcript: mockTranscript,
-      suggestions: mockSuggestions,
+      transcript: [],
+      suggestions: [],
       suggestionBatches: [],
-      chatMessages: mockChat,
+      chatMessages: [],
     }),
 }));
