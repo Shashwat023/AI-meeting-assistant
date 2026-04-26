@@ -33,6 +33,16 @@ const typeConfig: Record<SuggestionType, { label: string; icon: React.ElementTyp
   detailed: { label: 'Detailed', icon: MessageSquare, color: 'text-violet-400 bg-violet-500/10 border-violet-500/20', gradient: 'from-violet-500/20 to-purple-500/20' },
 };
 
+// UI truncation helpers to enforce max lengths even if model ignores instructions
+const MAX_PREVIEW_LENGTH = 60;
+const MAX_REASONING_LENGTH = 120;
+const MAX_TITLE_LENGTH = 30; // Roughly 5 words
+
+function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength - 3).trim() + '...';
+}
+
 function SuggestionCardItem({
   suggestion,
   onChatClick,
@@ -45,6 +55,11 @@ function SuggestionCardItem({
   const [expanded, setExpanded] = useState(false);
   const typeInfo = typeConfig[suggestion.type] || typeConfig.talking_point;
   const Icon = typeInfo.icon;
+
+  // Apply UI-level truncation guardrails
+  const displayTitle = truncateText(suggestion.title, MAX_TITLE_LENGTH);
+  const displayPreview = truncateText(suggestion.preview, MAX_PREVIEW_LENGTH);
+  const displayReasoning = truncateText(suggestion.reasoning, MAX_REASONING_LENGTH);
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -71,7 +86,7 @@ function SuggestionCardItem({
       <div className="px-3 py-2.5">
         <div className="flex items-start justify-between gap-2 mb-2">
           <h4 className="text-xs font-semibold text-white/90 flex-1 line-clamp-1 leading-tight">
-            {suggestion.title}
+            {displayTitle}
           </h4>
           <span className={`text-[10px] px-2 py-0.5 rounded-full border ${typeInfo.color} flex items-center gap-1 shrink-0 font-medium`}>
             <Icon className="w-3 h-3" />
@@ -80,14 +95,14 @@ function SuggestionCardItem({
         </div>
         
         <p className="text-xs text-white/60 line-clamp-2 leading-relaxed">
-          {suggestion.preview}
+          {displayPreview}
         </p>
 
         {expanded && (
           <div className="mt-3 pt-3 border-t border-white/[0.06]">
             <p className="text-[11px] text-white/50 leading-relaxed">
-              <span className="font-medium text-white/70">Why this matters: </span>
-              {suggestion.reasoning}
+              <span className="font-medium text-white/70">Why: </span>
+              {displayReasoning}
             </p>
           </div>
         )}

@@ -4,28 +4,30 @@ import { parseSuggestionsWithRetry } from '../utils/suggestionParser';
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'llama-3.3-70b-versatile';
 
-const DEFAULT_SUGGESTION_PROMPT = `You are an intelligent meeting assistant. Based on the conversation transcript provided, generate EXACTLY 3 helpful, context-aware suggestions.
+const DEFAULT_SUGGESTION_PROMPT = `You are a live meeting copilot generating instant, scannable suggestions. Based on the conversation transcript, generate EXACTLY 3 compact, high-signal suggestions.
 
 Each suggestion must be one of these types:
-- "question": A smart question to ask to advance the discussion
-- "talking_point": An interesting angle or perspective to bring up  
-- "answer": A concise answer to a question that was just asked
-- "fact_check": A relevant fact to verify or clarify
-- "clarification": A point that needs clarification
+- "question": A sharp question to advance the discussion
+- "talking_point": A relevant angle to contribute
+- "answer": A quick answer to a question just asked
+- "fact_check": A relevant fact to verify
+- "clarification": A point needing clarity
 
-Requirements:
+STRICT BREVITY REQUIREMENTS (enforced):
 1. Output MUST be a valid JSON array with exactly 3 objects
-2. Each object must have: title (string), preview (string, max 100 chars), reasoning (string, detailed), type (one of the 5 types above)
-3. Suggestions must be varied (don't have 3 questions in a row)
-4. Be specific - reference actual content from the transcript
-5. No generic filler like "ask for clarification" without specifics
+2. title: max 5 words, action-oriented, no filler
+3. preview: max 60 characters, 1-line punchy hook, NO title repetition, NO type explanation
+4. reasoning: max 120 characters, dense insight only, no generic explanations
+5. Every character must earn its place. Strip all fluff.
+6. Be specific - reference actual transcript content
+7. NO intros like "Consider asking..." or "You could..." - just the raw suggestion
 
 Output format:
 [
   {"title": "...", "preview": "...", "reasoning": "...", "type": "..."},
   {"title": "...", "preview": "...", "reasoning": "...", "type": "..."},
   {"title": "...", "preview": "...", "reasoning": "...", "type": "..."}
-]`;
+]`
 
 export interface GenerateSuggestionsResult {
   success: boolean;
@@ -109,7 +111,7 @@ export async function generateSuggestions(
           },
         ],
         temperature: 0.7,
-        max_tokens: 800,
+        max_tokens: 400,
         response_format: { type: 'json_object' },
       }),
     });

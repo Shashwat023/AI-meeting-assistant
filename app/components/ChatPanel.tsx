@@ -6,6 +6,14 @@ import { useAppStore } from '../store/appStore';
 import { useChat } from '../hooks/useChat';
 import { MessageSquare, User, Bot, Send, Loader2 } from 'lucide-react';
 
+// Maximum characters to display per message before truncation
+const MAX_MESSAGE_LENGTH = 500;
+
+function truncateMessage(content: string, maxLength: number = MAX_MESSAGE_LENGTH): string {
+  if (content.length <= maxLength) return content;
+  return content.slice(0, maxLength).trim() + '...';
+}
+
 export function ChatPanel() {
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -109,8 +117,8 @@ export function ChatPanel() {
                       {formatTime(message.timestamp)}
                     </span>
                   </div>
-                  <p className="text-xs text-white/80 leading-relaxed">
-                    {message.content}
+                  <p className="text-xs text-white/80 leading-relaxed max-h-40 overflow-y-auto scrollbar-thin">
+                    {truncateMessage(message.content)}
                   </p>
                 </div>
               </div>
