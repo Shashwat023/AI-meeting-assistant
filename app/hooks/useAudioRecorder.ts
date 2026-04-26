@@ -5,7 +5,7 @@ import { useAppStore } from '../store/appStore';
 import { transcribeAudio } from '../services/transcriptionService';
 import type { RecordingError, RecordingState } from '../types';
 
-const CHUNK_DURATION_MS = 20000; // 20 seconds per chunk
+const CHUNK_DURATION_MS = 15000; // 15 seconds per chunk for more frequent updates
 
 export function useAudioRecorder() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -16,6 +16,7 @@ export function useAudioRecorder() {
   const isStoppingRef = useRef<boolean>(false);
   const mimeTypeRef = useRef<string>('audio/webm');
   const isProcessingChunkRef = useRef<boolean>(false);
+  const handleChunkCompleteRef = useRef<(() => void) | null>(null); // Ref to always have latest callback
   
   // Local state for recording UI
   const [recordingState, setRecordingState] = useState<RecordingState>('idle');
@@ -37,9 +38,10 @@ export function useAudioRecorder() {
     };
     
     recorder.onstop = () => {
-      console.log('[AudioRecorder] MediaRecorder stopped');
-      if (!isStoppingRef.current) {
-        // handleChunkComplete will be called via the effect
+      console.log('[AudioRecorder] MediaRecorder stopped, isStopping:', isStoppingRef.current);
+      if (!isStoppingRef.current && handleChunkCompleteRef.current) {
+        // Use the ref to always call the latest version
+        handleChunkCompleteRef.current();
       }
     };
     
@@ -104,65 +106,14 @@ export function useAudioRecorder() {
     }
   }, [groqApiKey]);
 
-  // Handle chunk completion and auto-restart
+  // Handle chunk completion and auto-restart - stored in ref to avoid stale closures
   const handleChunkComplete = useCallback(() => {
     console.log('[AudioRecorder] Handling chunk completion');
     
-    // Reset processing flag immediately
-    isProcessingChunkRef.current = false;
-    
     if (chunksRef.current.length === 0) {
       console.warn('[AudioRecorder] No audio data in chunk');
-      // Auto-restart if not stopping
-      if (!isStoppingRef.current && streamRef.current) {
-        try {
-          const newRecorder = new MediaRecorder(streamRef.current, {
-            mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4',
-          });
-          mediaRecorderRef.current = newRecorder;
-          mimeTypeRef.current = newRecorder.mimeType || 'audio/webm';
-          
-          newRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-              chunksRef.current.push(event.data);
-            }
-          };
-          
-          newRecorder.onstop = () => {
-            if (!isStoppingRef.current) {
-              handleChunkComplete();
-            }
-          };
-          
-          newRecorder.onerror = () => {
-            const error: RecordingError = {
-              type: 'mic_unavailable',
-              message: 'Microphone recording error occurred',
-            };
-            setRecordingError(error);
-            setRecordingState('error');
-          };
-          
-          newRecorder.start();
-          chunkStartTimeRef.current = Date.now();
-          console.log('Auto-restarted recording for next chunk');
-        } catch (e) {
-          console.error('Failed to auto-restart recorder:', e);
-        }
-      }
-      return;
-    }
-
-    const audioBlob = new Blob(chunksRef.current, { type: mimeTypeRef.current });
-    console.log(`[AudioRecorder] Created audio blob for chunk ${currentChunkIndex}: ${audioBlob.size} bytes`);
-    chunksRef.current = [];
-    
-    const chunkIndex = currentChunkIndex;
-    
-    if (audioBlob.size < 2000) {
-      console.warn(`[AudioRecorder] Chunk ${chunkIndex} too small (${audioBlob.size} bytes), skipping`);
-      // Still increment and restart
-      setCurrentChunkIndex((prev) => prev + 1);
+      // Reset processing flag since we have nothing to process
+      isProcessingChunkRef.current = false;
       
       // Auto-restart if not stopping
       if (!isStoppingRef.current && streamRef.current) {
@@ -173,44 +124,66 @@ export function useAudioRecorder() {
           mediaRecorderRef.current = newRecorder;
           mimeTypeRef.current = newRecorder.mimeType || 'audio/webm';
           
-          newRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-              chunksRef.current.push(event.data);
-            }
-          };
-          
-          newRecorder.onstop = () => {
-            if (!isStoppingRef.current) {
-              handleChunkComplete();
-            }
-          };
-          
-          newRecorder.onerror = () => {
-            const error: RecordingError = {
-              type: 'mic_unavailable',
-              message: 'Microphone recording error occurred',
-            };
-            setRecordingError(error);
-            setRecordingState('error');
-          };
+          setupMediaRecorderHandlers(newRecorder);
           
           newRecorder.start();
           chunkStartTimeRef.current = Date.now();
-          console.log('Auto-restarted recording after small chunk');
+          setRecordingState('recording');
+          console.log('[AudioRecorder] Auto-restarted recording for next chunk (no data)');
         } catch (e) {
-          console.error('Failed to auto-restart recorder:', e);
+          console.error('[AudioRecorder] Failed to auto-restart recorder:', e);
+          isProcessingChunkRef.current = false;
         }
+      } else {
+        isProcessingChunkRef.current = false;
+      }
+      return;
+    }
+
+    const audioBlob = new Blob(chunksRef.current, { type: mimeTypeRef.current });
+    const chunkSize = audioBlob.size;
+    console.log(`[AudioRecorder] Created audio blob: ${chunkSize} bytes, type: ${mimeTypeRef.current}`);
+    chunksRef.current = [];
+    
+    // Get current index and increment immediately for next chunk
+    const chunkIndex = currentChunkIndex;
+    setCurrentChunkIndex((prev) => prev + 1);
+    
+    if (audioBlob.size < 2000) {
+      console.warn(`[AudioRecorder] Chunk ${chunkIndex} too small (${chunkSize} bytes), skipping transcription`);
+      isProcessingChunkRef.current = false;
+      
+      // Auto-restart if not stopping
+      if (!isStoppingRef.current && streamRef.current) {
+        try {
+          const newRecorder = new MediaRecorder(streamRef.current, {
+            mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4',
+          });
+          mediaRecorderRef.current = newRecorder;
+          mimeTypeRef.current = newRecorder.mimeType || 'audio/webm';
+          
+          setupMediaRecorderHandlers(newRecorder);
+          
+          newRecorder.start();
+          chunkStartTimeRef.current = Date.now();
+          setRecordingState('recording');
+          console.log('[AudioRecorder] Auto-restarted recording after small chunk');
+        } catch (e) {
+          console.error('[AudioRecorder] Failed to auto-restart recorder:', e);
+          isProcessingChunkRef.current = false;
+        }
+      } else {
+        isProcessingChunkRef.current = false;
       }
       return;
     }
     
-    console.log(`Processing chunk ${chunkIndex}: ${audioBlob.size} bytes, type: ${mimeTypeRef.current}`);
+    console.log(`[AudioRecorder] Processing chunk ${chunkIndex}: ${chunkSize} bytes`);
     
-    // Process the chunk
+    // Process the chunk asynchronously
     processChunk(audioBlob, chunkIndex).then(() => {
-      console.log(`[AudioRecorder] Chunk ${chunkIndex} processing complete, restarting recorder...`);
-      // Increment index after successful processing
-      setCurrentChunkIndex((prev) => prev + 1);
+      console.log(`[AudioRecorder] Chunk ${chunkIndex} processing complete`);
+      isProcessingChunkRef.current = false;
       
       // Auto-restart recording for next chunk if not stopping
       if (!isStoppingRef.current && streamRef.current) {
@@ -221,36 +194,49 @@ export function useAudioRecorder() {
           mediaRecorderRef.current = newRecorder;
           mimeTypeRef.current = newRecorder.mimeType || 'audio/webm';
           
-          newRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-              chunksRef.current.push(event.data);
-            }
-          };
-          
-          newRecorder.onstop = () => {
-            if (!isStoppingRef.current) {
-              handleChunkComplete();
-            }
-          };
-          
-          newRecorder.onerror = () => {
-            const error: RecordingError = {
-              type: 'mic_unavailable',
-              message: 'Microphone recording error occurred',
-            };
-            setRecordingError(error);
-            setRecordingState('error');
-          };
+          setupMediaRecorderHandlers(newRecorder);
           
           newRecorder.start();
           chunkStartTimeRef.current = Date.now();
-          console.log(`Auto-restarted recording for chunk ${chunkIndex + 1}`);
+          setRecordingState('recording');
+          console.log(`[AudioRecorder] Auto-restarted recording for chunk ${chunkIndex + 1}`);
         } catch (e) {
-          console.error('Failed to auto-restart recorder:', e);
+          console.error('[AudioRecorder] Failed to auto-restart recorder:', e);
+          isProcessingChunkRef.current = false;
+        }
+      } else {
+        isProcessingChunkRef.current = false;
+      }
+    }).catch((err) => {
+      console.error('[AudioRecorder] Chunk processing failed:', err);
+      isProcessingChunkRef.current = false;
+      
+      // Still try to restart if not stopping
+      if (!isStoppingRef.current && streamRef.current) {
+        try {
+          const newRecorder = new MediaRecorder(streamRef.current, {
+            mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4',
+          });
+          mediaRecorderRef.current = newRecorder;
+          mimeTypeRef.current = newRecorder.mimeType || 'audio/webm';
+          
+          setupMediaRecorderHandlers(newRecorder);
+          
+          newRecorder.start();
+          chunkStartTimeRef.current = Date.now();
+          setRecordingState('recording');
+          console.log('[AudioRecorder] Auto-restarted after error');
+        } catch (e) {
+          console.error('[AudioRecorder] Failed to auto-restart after error:', e);
         }
       }
     });
-  }, [currentChunkIndex, processChunk]);
+  }, [currentChunkIndex, processChunk, setupMediaRecorderHandlers]);
+
+  // Keep the ref updated with the latest callback
+  useEffect(() => {
+    handleChunkCompleteRef.current = handleChunkComplete;
+  }, [handleChunkComplete]);
 
   // Stop recording
   const stopRecording = useCallback(() => {
@@ -361,36 +347,39 @@ export function useAudioRecorder() {
     }
   }, [setupMediaRecorderHandlers]);
 
-  // Setup timer to stop recorder every 20 seconds
+  // Setup timer to stop recorder every CHUNK_DURATION_MS
   useEffect(() => {
-    // Only start timer when actively recording and not processing a chunk
-    if (recordingState !== 'recording' || isProcessingChunkRef.current) {
-      console.log('[AudioRecorder] Timer not started - state:', recordingState, 'processing:', isProcessingChunkRef.current);
+    // Only start timer when actively recording
+    if (recordingState !== 'recording') {
+      console.log('[AudioRecorder] Timer not started - state:', recordingState);
       return;
     }
     
     // Clear any existing timer first
     if (chunkTimerRef.current) {
       clearInterval(chunkTimerRef.current);
+      chunkTimerRef.current = null;
     }
     
     console.log(`[AudioRecorder] Starting chunk timer (${CHUNK_DURATION_MS}ms intervals)`);
     
+    // Use a shorter check interval (100ms) to more responsively check processing state
     chunkTimerRef.current = setInterval(() => {
-      // Double-check we're still recording and not already processing
+      // Skip if already processing
       if (isProcessingChunkRef.current) {
-        console.log('[AudioRecorder] Timer skipped - already processing chunk');
         return;
       }
       
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-        console.log('[AudioRecorder] Timer triggered: stopping recorder for chunk processing');
-        isProcessingChunkRef.current = true;
-        mediaRecorderRef.current.stop();
-      } else {
-        console.warn('[AudioRecorder] Timer fired but recorder not in recording state:', mediaRecorderRef.current?.state);
+      // Check if it's time to stop this chunk
+      const elapsed = Date.now() - chunkStartTimeRef.current;
+      if (elapsed >= CHUNK_DURATION_MS) {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+          console.log(`[AudioRecorder] Timer triggered after ${elapsed}ms: stopping recorder for chunk processing`);
+          isProcessingChunkRef.current = true;
+          mediaRecorderRef.current.stop();
+        }
       }
-    }, CHUNK_DURATION_MS);
+    }, 100);
     
     return () => {
       if (chunkTimerRef.current) {
