@@ -50,108 +50,6 @@ Your task:
   contextWindowSize: 10,
 };
 
-// Fixed base timestamp for SSR consistency
-const BASE_TIMESTAMP = 1745586000000;
-
-// Mock transcript data
-const mockTranscript: TranscriptEntry[] = [
-  {
-    id: '1',
-    timestamp: BASE_TIMESTAMP - 300000,
-    speaker: 'other',
-    text: "Let's discuss the Q4 roadmap and priorities for the engineering team.",
-  },
-  {
-    id: '2',
-    timestamp: BASE_TIMESTAMP - 240000,
-    speaker: 'user',
-    text: 'I think we should prioritize performance improvements and technical debt reduction.',
-  },
-  {
-    id: '3',
-    timestamp: BASE_TIMESTAMP - 180000,
-    speaker: 'other',
-    text: "What's the timeline for the database refactor? We need to plan around the holiday freeze.",
-  },
-  {
-    id: '4',
-    timestamp: BASE_TIMESTAMP - 120000,
-    speaker: 'user',
-    text: 'We can ship phase 1 by mid-November if we focus on the core tables first.',
-  },
-  {
-    id: '5',
-    timestamp: BASE_TIMESTAMP - 60000,
-    speaker: 'other',
-    text: 'Can you elaborate on the performance targets? What metrics are we aiming for?',
-  },
-  {
-    id: '6',
-    timestamp: BASE_TIMESTAMP - 30000,
-    speaker: 'user',
-    text: 'We are targeting a 40% reduction in query latency and 50% improvement in cache hit rates.',
-  },
-];
-
-// Mock suggestions data
-const mockSuggestions: SuggestionCard[] = [
-  {
-    id: '1',
-    timestamp: BASE_TIMESTAMP - 200000,
-    title: 'Key Performance Metrics',
-    preview: 'Highlight specific benchmarks: p95 latency under 100ms, 99th percentile under 200ms.',
-    reasoning: 'The conversation is discussing performance improvements. Providing specific, measurable targets (p95 < 100ms, p99 < 200ms) gives the team concrete goals. The monitoring dashboard reference helps them track progress immediately.',
-    content: 'Highlight specific benchmarks: p95 latency under 100ms, 99th percentile under 200ms. Mention monitoring dashboard at /perf.',
-    type: 'talking_point',
-  },
-  {
-    id: '2',
-    timestamp: BASE_TIMESTAMP - 150000,
-    title: 'Refactor Timeline Breakdown',
-    preview: 'Phase 1: Core tables (users, sessions) - Nov 15. Phase 2: Analytics - Dec 1.',
-    reasoning: 'A structured timeline helps teams plan resources and dependencies. Breaking the refactor into phases reduces risk and allows for incremental validation. Mentioning DevOps coordination ensures infrastructure readiness.',
-    content: 'Phase 1: Core tables (users, sessions) - Nov 15\\nPhase 2: Analytics tables - Dec 1\\nPhase 3: Archive tables - Jan 15\\nCoordinate with DevOps for staging environment.',
-    type: 'fact_check',
-  },
-  {
-    id: '3',
-    timestamp: BASE_TIMESTAMP - 80000,
-    title: 'Q4 Milestone Proposal',
-    preview: 'Propose a structured approach with 4 key milestones from Oct 30 to Dec 15.',
-    reasoning: 'Having clear milestones keeps projects on track. The proposed dates (baseline Oct 30, kickoff Nov 1, review Nov 15, delivery Dec 15) create accountability and checkpoints for course correction.',
-    content: 'Propose a structured approach: (1) Performance baseline by Oct 30, (2) Refactor kickoff Nov 1, (3) Mid-quarter review Nov 15, (4) Final delivery Dec 15.',
-    type: 'question',
-  },
-];
-
-// Mock chat messages
-const mockChat: ChatMessage[] = [
-  {
-    id: '1',
-    timestamp: BASE_TIMESTAMP - 250000,
-    role: 'user',
-    content: 'Summarize the roadmap discussion so far.',
-  },
-  {
-    id: '2',
-    timestamp: BASE_TIMESTAMP - 245000,
-    role: 'assistant',
-    content: 'The team is discussing Q4 priorities focusing on two main areas: (1) Performance improvements targeting 40% query latency reduction and 50% cache improvement, and (2) A database refactor scheduled in three phases through January.',
-  },
-  {
-    id: '3',
-    timestamp: BASE_TIMESTAMP - 90000,
-    role: 'user',
-    content: 'What are the specific performance goals mentioned?',
-  },
-  {
-    id: '4',
-    timestamp: BASE_TIMESTAMP - 85000,
-    role: 'assistant',
-    content: 'The user mentioned targeting a 40% reduction in query latency and a 50% improvement in cache hit rates. These are ambitious but achievable goals that align with the technical debt reduction initiative.',
-  },
-];
-
 interface AppState {
   // Settings
   settings: AppSettings;
@@ -205,8 +103,8 @@ export const useAppStore = create<AppState>((set) => ({
       settings: { ...state.settings, ...newSettings },
     })),
 
-  // Initial transcript
-  transcript: mockTranscript,
+  // Initial transcript (empty - no demo data)
+  transcript: [],
   addTranscriptEntry: (entry) =>
     set((state) => ({
       transcript: [
@@ -219,8 +117,8 @@ export const useAppStore = create<AppState>((set) => ({
       ],
     })),
 
-  // Initial suggestions
-  suggestions: mockSuggestions,
+  // Initial suggestions (empty - no demo data)
+  suggestions: [],
   suggestionBatches: [],
   addSuggestion: (suggestion) =>
     set((state) => ({
@@ -253,8 +151,8 @@ export const useAppStore = create<AppState>((set) => ({
       suggestionBatches: [],
     })),
 
-  // Initial chat
-  chatMessages: mockChat,
+  // Initial chat (empty - no demo data)
+  chatMessages: [],
   addChatMessage: (message) =>
     set((state) => ({
       chatMessages: [
@@ -308,9 +206,9 @@ export const useAppStore = create<AppState>((set) => ({
   // Actions
   resetMockData: () =>
     set({
-      transcript: mockTranscript,
-      suggestions: mockSuggestions,
+      transcript: [],
+      suggestions: [],
       suggestionBatches: [],
-      chatMessages: mockChat,
+      chatMessages: [],
     }),
 }));
